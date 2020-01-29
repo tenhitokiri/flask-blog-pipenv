@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block head %}
+{% if title %}
+<title>{{title}}</title>
+{% else %}
+<title>About Us</title>
+{% endif %}
+{% endblock %}
+
+{% block body %}
+<h1>Hi! {{current_user.username}}</h1>
+<p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Expedita atque officia, suscipit reiciendis dolor dolores
+    molestiae vitae similique sit quasi labore, facilis, laborum cumque qui neque tenetur provident fugit pariatur.</p>
+{% endblock %}
