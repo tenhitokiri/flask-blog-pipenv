@@ -1,36 +1,19 @@
-from flask import flash, redirect, render_template, url_for, request
+from flask import flash, redirect, render_template, url_for, request, abort
 from app import app, db, bcrypt
-from app.forms import LoginForm, RegistrationForm
+from app.forms import LoginForm, RegistrationForm, ProfileForm, PostForm
 from app.models import Post, User
 from flask_login import login_user, current_user, logout_user, login_required
+from PIL import Image
+import secrets
+import os
 
-# seguir en video 7
-
-posts = [
-    {
-        'author': 'thk',
-        'title': 'prueba de blog',
-        'content': 'asldfkj aslñdfkj salñfkj sladñfkj dsañ',
-        'date_posted': '2019-01-25'
-    },
-    {
-        'author': 'thk',
-        'title': 'mas pruebas',
-        'content': 'asldfkj adfg dfg dfslñdfkj salñfkj sladñfkj dsañ',
-        'date_posted': '2019-01-22'
-    },
-    {
-        'author': 'thk',
-        'title': 'seguimos con pruebas',
-        'content': ' sdfs asldfkj aslñdfkj ssadf sadf alñfkj sladñfkj dsañ',
-        'date_posted': '2020-01-25'
-    }
-]
+# seguir en https://youtu.be/u0oDDZrDz9U?list=PL-osiE80TeTs4UjLw5MM6OjgkjFeUxCYH&t=2342
 
 
 @app.route('/')
 @app.route('/home')
 def home_page():
+    posts = Post.query.all()
     return render_template('home.html', posts=posts)
 
 
@@ -80,12 +63,81 @@ def logout_page():
     return redirect(url_for('home_page'))
 
 
-@app.route('/posts')
-def posts_page():
-    return "post go here"
+def save_picture(form_picture):
+    random_hex = secrets.token_hex(8)
+    _, f_ext = os.path.splitext(form_picture.filename)
+    picture_fn = random_hex + f_ext
+    picture_path = os.path.join(app.root_path, 'static/user_pics', picture_fn)
+    out_size = (125, 125)
+    i = Image.open(form_picture)
+    i.thumbnail(out_size)
+    i.save(picture_path)
+
+    return picture_fn
 
 
-@app.route('/account')
+@app.route('/account', methods=['POST', 'GET'])
 @login_required
 def account_page():
-    return render_template('account.html', title='My Account')
+    form = ProfileForm()
+    if form.validate_on_submit():
+        if form.picture.data:
+            picture_file = save_picture(form.picture.data)
+            current_user.image_file = picture_file
+        current_user.username = form.username.data
+        current_user.email = form.email.data
+        # db.session.add(current_user)
+        db.session.commit()
+        flash(f'Account info updated for {current_user.username} !', 'success')
+        return redirect(url_for('account_page'))
+    elif request.method == 'GET':
+        form.username.data = current_user.username
+        form.email.data = current_user.email
+    image_file = url_for('static', filename='user_pics/' +
+                         current_user.image_file)
+    return render_template('account.html', title='My Account', image_file=image_file, form=form)
+
+
+@app.route('/post/new', methods=['POST', 'GET'])
+@login_required
+def new_post_page():
+    form = PostForm()
+    if form.validate_on_submit():
+        post = Post(title=form.title.data,
+                    content=form.content.data, author=current_user)
+        db.session.add(post)
+        db.session.commit()
+        flash(f'Your post has been created!', 'success')
+        return redirect(url_for('home_page'))
+
+    return render_template('new_post.html', title='New Post', form=form, legend='New Post')
+
+
+@app.route('/post/<int:post_id>')
+@login_required
+def post_page(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post:
+        return render_template('post.html', title=post.title, post=post)
+    else:
+        flash(f'Post not found !', 'danger')
+        return redirect(url_for('home_page'))
+
+
+@app.route('/post/update/<int:post_id>', methods=['POST', 'GET'])
+@login_required
+def edit_post_page(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author != current_user:
+        abort(403)
+    form = PostForm()
+    if form.validate_on_submit():
+        post.title = form.title.data
+        post.content = form.title.data
+        db.session.commit()
+        flash(f'Your post has been updated!', 'success')
+        return redirect(url_for('post_page', post_id=post.id))
+    elif request.method == 'GET':
+        form.title.data = post.title
+        form.content.data = post.content
+    return render_template('new_post.html', title='New Post', form=form, legend='Update Post')
