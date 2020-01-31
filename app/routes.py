@@ -1,20 +1,21 @@
 from flask import flash, redirect, render_template, url_for, request, abort
 from app import app, db, bcrypt
-from app.forms import LoginForm, RegistrationForm, ProfileForm, PostForm
+from app.forms import LoginForm, RegistrationForm, ProfileForm, PostForm, RequestResetForm, ResetPasswordForm
 from app.models import Post, User
 from flask_login import login_user, current_user, logout_user, login_required
 from PIL import Image
 import secrets
 import os
 
-# seguir en https://youtu.be/u0oDDZrDz9U?list=PL-osiE80TeTs4UjLw5MM6OjgkjFeUxCYH&t=2342
+# seguir en https://youtu.be/vutyTx7IaAI?list=PL-osiE80TeTs4UjLw5MM6OjgkjFeUxCYH&t=1008
 
 
 @app.route('/')
 @app.route('/home')
 def home_page():
-    posts = Post.query.all()
-    return render_template('home.html', posts=posts)
+    page = request.args.get('page', 1, type=int)
+    posts = Post.query.order_by(Post.date_posted.desc()).paginate(per_page=4)
+    return render_template('home.html', posts=posts, page=page)
 
 
 @app.route('/about')
@@ -141,3 +142,48 @@ def edit_post_page(post_id):
         form.title.data = post.title
         form.content.data = post.content
     return render_template('new_post.html', title='New Post', form=form, legend='Update Post')
+
+
+@app.route('/post/delete/<int:post_id>', methods=['POST'])
+@login_required
+def delete_post_page(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author != current_user:
+        abort(403)
+    db.session.delete(post)
+    db.session.commit()
+    flash(f'Your post has been deleted!', 'success')
+    return redirect(url_for('home_page'))
+
+
+@app.route('/user/<string:username>')
+def user_posts_page(username):
+    page = request.args.get('page', 1, type=int)
+    user = User.query.filter_by(username=username).first_or_404()
+    posts = Post.query.filter_by(author=user).order_by(
+        Post.date_posted.desc()).paginate(per_page=4)
+    return render_template('user_posts.html', posts=posts, page=page, user=user)
+
+
+@app.route('/forgot_password', methods=['POST', 'GET'])
+def forgot_password_page():
+    if current_user.is_authenticated:
+        return redirect(url_for('home_page'))
+    form = RequestResetForm()
+    if form.validate_on_submit():
+        flash(f'Email sent!', 'success')
+        return redirect(url_for('home_page'))
+
+    return render_template('forgot_pw.html', title='Reset Password', form=form)
+
+
+@app.route('/reset_password', methods=['POST', 'GET'])
+def reset_password_page():
+    if current_user.is_authenticated:
+        return redirect(url_for('home_page'))
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        flash(f'Your password has been reset!', 'success')
+        return redirect(url_for('home_page'))
+
+    return render_template('reset_pw.html', title='Reset Password', form=form)

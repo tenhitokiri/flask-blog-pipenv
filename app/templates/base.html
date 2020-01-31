@@ -40,9 +40,11 @@
                     <div class="dropdown-menu mr-auto" aria-labelledby="navbarDropdownMenuLink">
                         <a class="dropdown-item" href="{{url_for('logout_page')}}">Log Out</a>
                         <a class="dropdown-item" href="{{url_for('account_page')}}">My Account</a>
-                        <a class="dropdown-item" href="{{url_for('new_post_page')}}">New Post</a>
                         <a class="dropdown-item" href="#">Something else</a>
                     </div>
+                </li>
+                <li class="nav-item">
+                    <a class="dropdown-item" href="{{url_for('new_post_page')}}">New Post</a>
                 </li>
                 {%else%}
                 <li class="nav-item">
